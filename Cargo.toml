@@ -11,3 +11,6 @@ debug = true
 [dependencies]
 strings = "*"
 gstuff = {version = "*", features = ["nightly", "rdtsc"]}
+ropey = "*"
+rand = "*"
+jumprope = "*"
