@@ -10,7 +10,8 @@ mod tests {
   use test::{Bencher, black_box};
   use jumprope::*;
   use ropey::Rope;
-  use std::io::{BufReader, BufWriter};
+  
+  
 
   #[bench]
   fn strings (b: &mut Bencher) {
@@ -32,7 +33,7 @@ mod tests {
  
   }
   #[bench]
-  fn jstrings (b: &mut Bencher){
+  fn jumpstrings (b: &mut Bencher){
     let mut jrope = JumpRope::new();
      let mut c =0;
     println! ("{}", rdtsc() % 65536);
@@ -40,8 +41,8 @@ mod tests {
       let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
       buf[rdtsc() as usize % buf.len()] = (rdtsc() % 256) as u8;
       let text = unsafe {std::str::from_utf8_unchecked (&buf)};
-      jrope.insert(0, text);//have not push_copy analog
-      //  c=c+1;
+      jrope.insert(c, "bla");//have not push_copy analog, how get text data
+        c=c+1;
       if jrope.len_bytes() > 1024*1024 {jrope.remove (0..314*1024)};  
       
   
@@ -50,19 +51,35 @@ mod tests {
     
   
   }#[bench]
-  fn ropey_strings(b:&mut Bencher){
+  fn ropeytest(b:&mut Bencher){
     let mut ropeys = Rope::new();
-    let mut c =0;
+    
     println! ("{}", rdtsc() % 65536);
     b.iter(||{
       let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
       buf[rdtsc() as usize % buf.len()] = (rdtsc() % 256) as u8;
       let text = unsafe {std::str::from_utf8_unchecked (&buf)};
       ropeys.insert(0, text);//?
-      c=c+1;
+      
       if ropeys.len_bytes() > 1024*1024 {ropeys.remove (0..314*1024)};
     });
     println!("{}", ropeys.to_string().len())
+  }
+  #[bench]
+  fn vect(b:&mut Bencher){
+    let mut vectors = Vec::<u8>::new();
+    println! ("{}", rdtsc() % 65536);
+    b.iter(||{
+      let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
+      buf[rdtsc() as usize % buf.len()] = (rdtsc()% 256) as u8;
+      // let text = unsafe {std::str::from_utf8(&buf)};
+    
+      vectors.extend_from_slice(&buf);
+      // if vectors.len() > 1024*1024 {vectors.remove()};
+ 
+        
+    });
+    println!("{}", vectors.len())
   }
 }
 
