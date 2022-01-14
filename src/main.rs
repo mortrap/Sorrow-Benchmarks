@@ -5,9 +5,9 @@ extern crate test;
 #[cfg(test)]
 mod tests {
   use gstuff::rdtsc;
-  use strings::rope;
-  use std::{mem::MaybeUninit, io::BufRead};
-  use test::{Bencher, black_box};
+  use imbl::Vector;
+  use std::{mem::MaybeUninit, collections::VecDeque};
+  use test::{Bencher};
   use jumprope::*;
   use ropey::Rope;
   
@@ -15,9 +15,7 @@ mod tests {
 
   #[bench]
   fn strings (b: &mut Bencher) {
-    let mut rope = strings::rope::Rope::new();
-    println! ("{}", rdtsc() % 65536);
-    
+    let mut rope = strings::rope::Rope::new();    
     
     b.iter(|| {
       let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
@@ -26,60 +24,79 @@ mod tests {
       let text = unsafe {std::str::from_utf8_unchecked (&buf)};//?
       rope.push_copy(text);//cool
       if rope.len() > 1024 * 1024 {rope.remove (0, 314 * 1024)};
-    });
-    
-      
-      println!("{}", rope.len());
- 
+    }); 
   }
+
+  /// Fails on non-unicode.
   #[bench]
   fn jumpstrings (b: &mut Bencher){
     let mut jrope = JumpRope::new();
      let mut c =0;
-    println! ("{}", rdtsc() % 65536);
     b.iter(|| {
       let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
       buf[rdtsc() as usize % buf.len()] = (rdtsc() % 256) as u8;
       let text = unsafe {std::str::from_utf8_unchecked (&buf)};
-      jrope.insert(c, "bla");//have not push_copy analog, how get text data
+      jrope.insert (jrope.len_chars(), text);
         c=c+1;
-      if jrope.len_bytes() > 1024*1024 {jrope.remove (0..314*1024)};  
-      
-  
+      if jrope.len_bytes() > 1024*1024 {jrope.remove (0..314*1024)};    
     });
-      println!("{}", jrope.to_string().len())
-    
-  
-  }#[bench]
+  }
+
+  #[bench]
   fn ropeytest(b:&mut Bencher){
     let mut ropeys = Rope::new();
     
-    println! ("{}", rdtsc() % 65536);
     b.iter(||{
       let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
       buf[rdtsc() as usize % buf.len()] = (rdtsc() % 256) as u8;
       let text = unsafe {std::str::from_utf8_unchecked (&buf)};
-      ropeys.insert(0, text);//?
+      ropeys.insert (0, text);
       
       if ropeys.len_bytes() > 1024*1024 {ropeys.remove (0..314*1024)};
     });
-    println!("{}", ropeys.to_string().len())
   }
+
   #[bench]
   fn vect(b:&mut Bencher){
-    let mut vectors = Vec::<u8>::new();
-    println! ("{}", rdtsc() % 65536);
+    let mut vector = Vec::<u8>::new();
     b.iter(||{
       let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
       buf[rdtsc() as usize % buf.len()] = (rdtsc()% 256) as u8;
       // let text = unsafe {std::str::from_utf8(&buf)};
     
-      vectors.extend_from_slice(&buf);
-      // if vectors.len() > 1024*1024 {vectors.remove()};
- 
-        
+      vector.extend_from_slice(&buf);
+      if vector.len() > 1024*1024 {vector.drain (0..314*1024);}
     });
-    println!("{}", vectors.len())
+  }
+
+  #[bench]
+  fn deque (b:&mut Bencher){
+    let mut deque = VecDeque::<u8>::new();
+    b.iter (||{
+      let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
+      buf[rdtsc() as usize % buf.len()] = (rdtsc()% 256) as u8;
+      // let text = unsafe {std::str::from_utf8(&buf)};
+    
+      for ch in buf {deque.push_back (ch)}
+      if deque.len() > 1024*1024 {deque.drain (0..314*1024);}
+    })
+  }
+
+  // No batch `extend`?
+  #[bench]
+  fn imvec(b:&mut Bencher){
+    let mut imvec: Vector<u8> = Vector::new();
+    b.iter(||{
+      let mut buf: [u8; 65536] = unsafe {MaybeUninit::uninit().assume_init()};
+      buf[rdtsc() as usize % buf.len()] = (rdtsc()% 256) as u8;
+      //let text = unsafe {std::str::from_utf8(&buf)};
+    
+      for ch in &buf {
+        imvec.push_back (*ch)
+      }
+      //imvec.extend_from_slice(&buf);
+      //if imvec.len() > 1024*1024 {imvec.drain (0..314*1024);}
+    });
   }
 }
 

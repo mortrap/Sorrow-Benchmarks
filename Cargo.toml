@@ -14,3 +14,4 @@ gstuff = {version = "*", features = ["nightly", "rdtsc"]}
 ropey = "*"
 rand = "*"
 jumprope = "*"
+imbl = "*"
