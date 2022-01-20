@@ -114,3 +114,43 @@ fn main() {
 
 
 
+fn main() {
+  Python::with_gil(|py| {
+      let custom_manager = PyModule::from_code(py, r#"
+class House(object):
+  def __init__(self, address):
+      self.address = address
+  def __enter__(self):
+      print(f"Welcome to {self.address}!")
+  def __exit__(self, type, value, traceback):
+      if type:
+          print(f"Sorry you had {type} trouble at {self.address}")
+      else:
+          print(f"Thank you for visiting {self.address}, come again soon!")
+
+      "#, "house.py", "house").unwrap();
+
+      let house_class = custom_manager.getattr("House").unwrap();
+      let house = house_class.call1(("123 Main Street",)).unwrap();
+
+      house.call_method0("__enter__").unwrap();
+
+      let result = py.eval("undefined_variable + 1", None, None);
+
+      // If the eval threw an exception we'll pass it through to the context manager.
+      // Otherwise, __exit__  is called with empty arguments (Python "None").
+      match result {
+          Ok(_) => {
+              let none = py.None();
+              house.call_method1("__exit__", (&none, &none, &none)).unwrap();
+          },
+          Err(e) => {
+              house.call_method1(
+                  "__exit__",
+                  (e.ptype(py), e.pvalue(py), e.ptraceback(py))
+              ).unwrap();
+          }
+      }
+  })
+}
+
