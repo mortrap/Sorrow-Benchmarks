@@ -1,6 +1,12 @@
+#![allow(unknown_lints, uncommon_codepoints)]
+
 #![feature(test)]
 extern crate test;
 
+use std::io::{Read, BufRead};
+
+use gstuff::binprint;
+use gstuff::re::Re;
 
 #[cfg(test)]
 mod tests {
@@ -10,6 +16,9 @@ mod tests {
   use test::{Bencher};
   use jumprope::*;
   use ropey::Rope;
+  use gstuff::re::Re;
+
+use crate::parse_warc;
   
   
 
@@ -98,6 +107,61 @@ mod tests {
       //if imvec.len() > 1024*1024 {imvec.drain (0..314*1024);}
     });
   }
+
+  #[bench]
+  fn warc_streaming (_ben: &mut Bencher) {
+    fn warc_streamingʹ () -> Re<()> {
+      let path = "c:/Users/artem/Downloads/qwe/CC-MAIN-20210224165708-20210224195708-00000.warc";
+      let mut file = std::fs::File::open (path)?;
+      parse_warc (&mut file)?;
+      Re::Ok(())
+    }
+    warc_streamingʹ().unwrap();
+  }
+}
+
+fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
+  let mut buf: Vec<u8> = Vec::with_capacity (2 * 1024 * 1024);
+  unsafe {buf.set_len (buf.capacity())};
+  let mut buf = &mut buf[..];
+
+  let mut start = 0;
+  let mut end = 0;
+  let mut eof = false;
+  let mut total = 0;
+  loop {
+    unsafe {std::ptr::copy_nonoverlapping (buf.as_mut_ptr().add (start), buf.as_mut_ptr(), end - start)}
+    end -= start;
+    start = 0;
+
+    loop {
+      if 1024 * 1024 < end {break}
+      let got = warc.read (&mut buf[end..])?;
+      total += got;
+      println! ("{total}");
+      end += got;
+      if got == 0 {eof = true; break}
+    }
+
+    loop {
+      let newline = start + memchr::memchr (b'\n', &buf[start..end]) ?;
+      let line = &buf[start .. newline-1];
+      start = newline + 1;
+
+      // ⌥ if remaining buf tail is smaller than the Content-Length header then it's time to load more
+
+      if line.starts_with (b"Content-Length: ") {
+        let cl = unsafe {std::str::from_utf8_unchecked (&line[16..])};
+        let cl: usize = cl.parse()?;
+        let head_end = start + memchr::memchr2 (b'\n', b'\n', &buf[start..end]) ?;
+        start += 2 + cl;
+        println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
+      }
+    }
+
+    if eof {break}
+  }
+  Re::Ok(())
 }
 
 fn main() {
@@ -113,7 +177,7 @@ fn main() {
 }
 
 
-
+/*
 fn main() {
   Python::with_gil(|py| {
       let custom_manager = PyModule::from_code(py, r#"
@@ -153,4 +217,4 @@ class House(object):
       }
   })
 }
-
+*/

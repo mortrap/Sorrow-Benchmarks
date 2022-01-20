@@ -18,6 +18,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "fomat-macros"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fe56556a8c9f9f556150eb6b390bc1a8b3715fd2ddbb4585f36b6a5672c6a833"
+
+[[package]]
 name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -34,6 +40,7 @@ version = "0.7.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80469377a1a0fb5039c895c1d6d954442bbf7af75cf0b23de7162ef95702c1a4"
 dependencies = [
+ "fomat-macros",
  "lazy_static",
  "libc",
 ]
@@ -91,6 +98,12 @@ checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if",
 ]
+
+[[package]]
+name = "memchr"
+version = "2.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "308cc39be01b73d0d18f82a0e7b2a3df85245f84af96fdddc5d202d27e47b86a"
 
 [[package]]
 name = "ppv-lite86"
@@ -154,6 +167,7 @@ dependencies = [
  "gstuff",
  "imbl",
  "jumprope",
+ "memchr",
  "rand",
  "ropey",
  "strings",

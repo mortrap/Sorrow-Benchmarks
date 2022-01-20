@@ -9,9 +9,10 @@ edition = "2021"
 debug = true
 
 [dependencies]
-strings = "*"
-gstuff = {version = "*", features = ["nightly", "rdtsc"]}
+gstuff = {version = "*", features = ["nightly", "rdtsc", "re"]}
+memchr = "*"
 ropey = "*"
 rand = "*"
+strings = "*"
 jumprope = "*"
 imbl = "*"
