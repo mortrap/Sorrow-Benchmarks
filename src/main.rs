@@ -3,10 +3,11 @@
 #![feature(test)]
 extern crate test;
 
-use std::io::{Read, BufRead};
+
 
 use gstuff::binprint;
 use gstuff::re::Re;
+
 
 #[cfg(test)]
 mod tests {
@@ -17,12 +18,16 @@ mod tests {
   use jumprope::*;
   use ropey::Rope;
   use gstuff::re::Re;
+  use pyo3::prelude::*;
+  use pyo3::types::IntoPyDict;
+  use pyo3::Python;
+  use std::fs;
 
 use crate::parse_warc;
   
   
 
-  #[bench]
+  
   fn strings (b: &mut Bencher) {
     let mut rope = strings::rope::Rope::new();    
     
@@ -37,7 +42,7 @@ use crate::parse_warc;
   }
 
   /// Fails on non-unicode.
-  #[bench]
+ 
   fn jumpstrings (b: &mut Bencher){
     let mut jrope = JumpRope::new();
      let mut c =0;
@@ -51,7 +56,7 @@ use crate::parse_warc;
     });
   }
 
-  #[bench]
+  
   fn ropeytest(b:&mut Bencher){
     let mut ropeys = Rope::new();
     
@@ -65,7 +70,7 @@ use crate::parse_warc;
     });
   }
 
-  #[bench]
+  
   fn vect(b:&mut Bencher){
     let mut vector = Vec::<u8>::new();
     b.iter(||{
@@ -78,7 +83,7 @@ use crate::parse_warc;
     });
   }
 
-  #[bench]
+  
   fn deque (b:&mut Bencher){
     let mut deque = VecDeque::<u8>::new();
     b.iter (||{
@@ -92,7 +97,7 @@ use crate::parse_warc;
   }
 
   // No batch `extend`?
-  #[bench]
+  
   fn imvec(b:&mut Bencher){
     let mut imvec: Vector<u8> = Vector::new();
     b.iter(||{
@@ -107,11 +112,23 @@ use crate::parse_warc;
       //if imvec.len() > 1024*1024 {imvec.drain (0..314*1024);}
     });
   }
-
-  #[bench]
+//  не могу прочитать 5гб варк файл?
+#[bench]
+fn python_code (_ben: &mut Bencher){
+  fn python_codeʹ () -> Re<()>{
+    let gil = Python::acquire_gil();
+    let py = gil.python();
+    let script = fs::read_to_string("/home/mor/pyth/Prototype-Parsing/war.py")?;
+    println!("RUNNING :\n[\n{}]", script);
+    py.run(&script, None, None);
+    Re::Ok(())
+  }
+  python_codeʹ ().unwrap();
+}
+  
   fn warc_streaming (_ben: &mut Bencher) {
     fn warc_streamingʹ () -> Re<()> {
-      let path = "c:/Users/artem/Downloads/qwe/CC-MAIN-20210224165708-20210224195708-00000.warc";
+      let path = "CC-NEWS-20200110212037-00310.warc";
       let mut file = std::fs::File::open (path)?;
       parse_warc (&mut file)?;
       Re::Ok(())
@@ -119,7 +136,7 @@ use crate::parse_warc;
     warc_streamingʹ().unwrap();
   }
 }
-
+// не хватает памяти буфера, вылетает паника
 fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
   let mut buf: Vec<u8> = Vec::with_capacity (2 * 1024 * 1024);
   unsafe {buf.set_len (buf.capacity())};
@@ -155,7 +172,7 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
         let cl: usize = cl.parse()?;
         let head_end = start + memchr::memchr2 (b'\n', b'\n', &buf[start..end]) ?;
         start += 2 + cl;
-        println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
+        // println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
       }
     }
 

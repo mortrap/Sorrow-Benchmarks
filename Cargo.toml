@@ -7,7 +7,9 @@ edition = "2021"
 
 [profile.release]
 debug = true
-
+[dependencies.pyo3]
+version = "0.15.1"
+features = ["auto-initialize"]
 [dependencies]
 gstuff = {version = "*", features = ["nightly", "rdtsc", "re"]}
 memchr = "*"
