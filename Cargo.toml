@@ -7,14 +7,14 @@ edition = "2021"
 
 [profile.release]
 debug = true
-[dependencies.pyo3]
-version = "0.15.1"
-features = ["auto-initialize"]
+
 [dependencies]
+fomat-macros = "*"
 gstuff = {version = "*", features = ["nightly", "rdtsc", "re"]}
+imbl = "*"
+jumprope = "*"
 memchr = "*"
+pyo3 = {version = "0.15.1", features = ["auto-initialize"]}
 ropey = "*"
 rand = "*"
 strings = "*"
-jumprope = "*"
-imbl = "*"

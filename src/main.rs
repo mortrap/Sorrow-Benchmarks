@@ -1,24 +1,22 @@
 #![allow(unknown_lints, uncommon_codepoints)]
 
 #![feature(test)]
+
 extern crate test;
 
-
-
-use gstuff::binprint;
 use gstuff::re::Re;
 
 
 #[cfg(test)]
 mod tests {
+  use fomat_macros::fomat;
   use gstuff::rdtsc;
   use imbl::Vector;
   use std::{mem::MaybeUninit, collections::VecDeque};
   use test::{Bencher};
-  use jumprope::*;
+  use jumprope::JumpRope;
   use ropey::Rope;
   use gstuff::re::Re;
-  use pyo3::prelude::*;
   use pyo3::types::IntoPyDict;
   use pyo3::Python;
   use std::fs;
@@ -115,20 +113,32 @@ use crate::parse_warc;
 //  не могу прочитать 5гб варк файл?
 #[bench]
 fn python_code (_ben: &mut Bencher){
-  fn python_codeʹ () -> Re<()>{
+  fn python_codeʹ() -> Re<()>{
+    let path = warc_file();
+    std::env::set_var ("WARC_FILE", path);
+
     let gil = Python::acquire_gil();
     let py = gil.python();
-    let script = fs::read_to_string("/home/mor/pyth/Prototype-Parsing/war.py")?;
-    println!("RUNNING :\n[\n{}]", script);
-    py.run(&script, None, None);
+    let script = fomat! (
+      "import sys\n"
+      r#"sys.path.append ("../Prototype-Parsing")"# "\n"
+      "import main"
+    );
+    py.run (&script, None, None)?;
     Re::Ok(())
   }
   python_codeʹ ().unwrap();
 }
-  
+
+  fn warc_file() -> String {
+    let mut args = std::env::args();
+    args.next().unwrap(); args.next().unwrap(); args.next().unwrap();
+    args.next().unwrap()}
+
+  #[bench]
   fn warc_streaming (_ben: &mut Bencher) {
     fn warc_streamingʹ () -> Re<()> {
-      let path = "CC-NEWS-20200110212037-00310.warc";
+      let path = warc_file();
       let mut file = std::fs::File::open (path)?;
       parse_warc (&mut file)?;
       Re::Ok(())
@@ -136,7 +146,6 @@ fn python_code (_ben: &mut Bencher){
     warc_streamingʹ().unwrap();
   }
 }
-// не хватает памяти буфера, вылетает паника
 fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
   let mut buf: Vec<u8> = Vec::with_capacity (2 * 1024 * 1024);
   unsafe {buf.set_len (buf.capacity())};
@@ -162,6 +171,7 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
 
     loop {
       let newline = start + memchr::memchr (b'\n', &buf[start..end]) ?;
+
       let line = &buf[start .. newline-1];
       start = newline + 1;
 
@@ -172,7 +182,7 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
         let cl: usize = cl.parse()?;
         let head_end = start + memchr::memchr2 (b'\n', b'\n', &buf[start..end]) ?;
         start += 2 + cl;
-        // println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
+        println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
       }
     }
 

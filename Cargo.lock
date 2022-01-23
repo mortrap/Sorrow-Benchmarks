@@ -342,6 +342,7 @@ dependencies = [
 name = "rope"
 version = "0.1.0"
 dependencies = [
+ "fomat-macros",
  "gstuff",
  "imbl",
  "jumprope",
