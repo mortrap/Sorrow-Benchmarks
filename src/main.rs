@@ -4,7 +4,8 @@
 
 extern crate test;
 
-use gstuff::re::Re;
+use fomat_macros::fomat;
+use gstuff::{re::Re, fail};
 
 
 #[cfg(test)]
@@ -130,6 +131,38 @@ fn python_code (_ben: &mut Bencher){
   python_codeʹ ().unwrap();
 }
 
+  #[bench]
+  fn fast_warc (_ben: &mut Bencher){
+    fn fast_warcʹ() -> Re<()>{
+      let gil = Python::acquire_gil();
+      let py = gil.python();
+      let script = fomat! (
+        // https://github.com/chatnoir-eu/chatnoir-resiliparse/tree/develop/fastwarc
+        // https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html
+        // pip install --user fastwarc
+        // pip install --user extruct
+        "from fastwarc.warc import ArchiveIterator, is_http\n"
+        "import extruct\n"
+        // ⌥ 
+        "for record in ArchiveIterator(open('c:/Users/artem/Downloads/qwe/CC-MAIN-20210224165708-20210224195708-00000.warc', 'rb'), func_filter=is_http):\n"
+        "  print(record.record_id)\n"
+        "  reader = record.reader\n"
+        "  body = record.reader.read(1024 * 1024)\n"
+        "  body = body.decode()\n"
+        "  if 'application/ld+json' in body:\n"
+        "    try:\n"
+        "      metadata = extruct.extract(body)\n"
+        "      print(metadata)\n"
+        "    except Exception:\n"
+        "      print('exception')\n"
+        "  record.reader.consume()\n"
+      );
+      py.run (&script, None, None)?;
+      Re::Ok(())
+    }
+    fast_warcʹ ().unwrap();
+  }
+
   fn warc_file() -> String {
     let mut args = std::env::args();
     args.next().unwrap(); args.next().unwrap(); args.next().unwrap();
@@ -147,7 +180,8 @@ fn python_code (_ben: &mut Bencher){
   }
 }
 fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
-  let mut buf: Vec<u8> = Vec::with_capacity (2 * 1024 * 1024);
+  let capacity = 2 * 1024 * 1024;
+  let mut buf: Vec<u8> = Vec::with_capacity (capacity);
   unsafe {buf.set_len (buf.capacity())};
   let mut buf = &mut buf[..];
 
@@ -155,34 +189,44 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
   let mut end = 0;
   let mut eof = false;
   let mut total = 0;
+
+  // Absolute WARC position of `start` is `total - (end - start)`.
+  macro_rules! warc_pos {() => {total - (end - start)}}
+
   loop {
     unsafe {std::ptr::copy_nonoverlapping (buf.as_mut_ptr().add (start), buf.as_mut_ptr(), end - start)}
     end -= start;
     start = 0;
 
     loop {
-      if 1024 * 1024 < end {break}
+      if capacity / 5 * 4 < end {break}
       let got = warc.read (&mut buf[end..])?;
       total += got;
-      println! ("{total}");
       end += got;
       if got == 0 {eof = true; break}
     }
 
     loop {
-      let newline = start + memchr::memchr (b'\n', &buf[start..end]) ?;
+      // Invariant: `start` points at WARC headers here
+      if end - start < 1024 {break}  // read more
 
+      let newlineʹ = memchr::memchr (b'\n', &buf[start..end]) ?;
+      if newlineʹ <= 4 {fail! ("Not a WARC header at " (warc_pos!()))}
+      let newline = start + newlineʹ;
       let line = &buf[start .. newline-1];
       start = newline + 1;
 
-      // ⌥ if remaining buf tail is smaller than the Content-Length header then it's time to load more
 
       if line.starts_with (b"Content-Length: ") {
         let cl = unsafe {std::str::from_utf8_unchecked (&line[16..])};
         let cl: usize = cl.parse()?;
-        let head_end = start + memchr::memchr2 (b'\n', b'\n', &buf[start..end]) ?;
-        start += 2 + cl;
-        println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
+        let head_end = start + memchr::memmem::find (&buf[start..end], b"\n\n") ?;
+        // Newlines before content + content + newlines after content
+        start = head_end + 2 + cl + 2;
+        println! ("head_end {head_end}; start {start}");
+        while buf[start] == b'\n' {start += 1}
+        println! ("{start} b");
+        //println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
       }
     }
 
