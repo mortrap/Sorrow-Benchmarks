@@ -18,15 +18,10 @@ mod tests {
   use jumprope::JumpRope;
   use ropey::Rope;
   use gstuff::re::Re;
-  use pyo3::types::IntoPyDict;
   use pyo3::Python;
-  use std::fs;
-
-use crate::parse_warc;
+  use crate::parse_warc;
   
-  
-
-  
+  #[bench]
   fn strings (b: &mut Bencher) {
     let mut rope = strings::rope::Rope::new();    
     
@@ -41,7 +36,7 @@ use crate::parse_warc;
   }
 
   /// Fails on non-unicode.
- 
+  #[bench]
   fn jumpstrings (b: &mut Bencher){
     let mut jrope = JumpRope::new();
      let mut c =0;
@@ -55,7 +50,7 @@ use crate::parse_warc;
     });
   }
 
-  
+  #[bench]
   fn ropeytest(b:&mut Bencher){
     let mut ropeys = Rope::new();
     
@@ -69,7 +64,7 @@ use crate::parse_warc;
     });
   }
 
-  
+  #[bench]
   fn vect(b:&mut Bencher){
     let mut vector = Vec::<u8>::new();
     b.iter(||{
@@ -82,7 +77,7 @@ use crate::parse_warc;
     });
   }
 
-  
+  #[bench]
   fn deque (b:&mut Bencher){
     let mut deque = VecDeque::<u8>::new();
     b.iter (||{
@@ -96,7 +91,7 @@ use crate::parse_warc;
   }
 
   // No batch `extend`?
-  
+  #[bench]
   fn imvec(b:&mut Bencher){
     let mut imvec: Vector<u8> = Vector::new();
     b.iter(||{
@@ -132,7 +127,7 @@ fn python_code (_ben: &mut Bencher){
 }
 
   #[bench]
-  fn fast_warc (_ben: &mut Bencher){
+  fn fast_warc (ben: &mut Bencher){
     fn fast_warcʹ() -> Re<()>{
       let gil = Python::acquire_gil();
       let py = gil.python();
@@ -141,27 +136,27 @@ fn python_code (_ben: &mut Bencher){
         // https://resiliparse.chatnoir.eu/en/latest/man/fastwarc.html
         // pip install --user fastwarc
         // pip install --user extruct
-        "from fastwarc.warc import ArchiveIterator, is_http\n"
+        "from fastwarc.warc import ArchiveIterator, is_http, WarcRecordType\n"
         "import extruct\n"
-        // ⌥ 
-        "for record in ArchiveIterator(open('c:/Users/artem/Downloads/qwe/CC-MAIN-20210224165708-20210224195708-00000.warc', 'rb'), func_filter=is_http):\n"
-        "  print(record.record_id)\n"
+        "docs = 0\n"
+        "for record in ArchiveIterator(open('c:/Users/artem/Downloads/qwe/CC-MAIN-20210224165708-20210224195708-00000.warc', 'rb'), record_types=WarcRecordType.response):\n"
+        //"  print(record.record_id)\n"
+        "  docs += 1\n"
         "  reader = record.reader\n"
-        "  body = record.reader.read(1024 * 1024)\n"
-        "  body = body.decode()\n"
-        "  if 'application/ld+json' in body:\n"
-        "    try:\n"
-        "      metadata = extruct.extract(body)\n"
-        "      print(metadata)\n"
-        "    except Exception:\n"
-        "      print('exception')\n"
+        //"  body = record.reader.read(1024 * 1024)\n"
+        //"  body = body.decode()\n"
+        //"  if 'application/ld+json' in body:\n"
+        //"    try:\n"
+        //"      metadata = extruct.extract(body)\n"
+        //"      print(metadata)\n"
+        //"    except Exception:\n"
+        //"      print('exception')\n"
         "  record.reader.consume()\n"
+        //"print(f'docs {docs}')\n"
       );
       py.run (&script, None, None)?;
-      Re::Ok(())
-    }
-    fast_warcʹ ().unwrap();
-  }
+      Re::Ok(())}
+    ben.iter (|| {fast_warcʹ().unwrap()})}
 
   fn warc_file() -> String {
     let mut args = std::env::args();
@@ -169,31 +164,31 @@ fn python_code (_ben: &mut Bencher){
     args.next().unwrap()}
 
   #[bench]
-  fn warc_streaming (_ben: &mut Bencher) {
+  fn warc_streaming (ben: &mut Bencher) {
     fn warc_streamingʹ () -> Re<()> {
       let path = warc_file();
       let mut file = std::fs::File::open (path)?;
       parse_warc (&mut file)?;
-      Re::Ok(())
-    }
-    warc_streamingʹ().unwrap();
-  }
-}
+      Re::Ok(())}
+    ben.iter (|| {warc_streamingʹ().unwrap()})}}
+
 fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
   let capacity = 2 * 1024 * 1024;
   let mut buf: Vec<u8> = Vec::with_capacity (capacity);
   unsafe {buf.set_len (buf.capacity())};
-  let mut buf = &mut buf[..];
+  let buf = &mut buf[..];
 
   let mut start = 0;
   let mut end = 0;
   let mut eof = false;
   let mut total = 0;
+  let mut docs = 0;
 
   // Absolute WARC position of `start` is `total - (end - start)`.
   macro_rules! warc_pos {() => {total - (end - start)}}
 
-  loop {
+  'warc: loop {
+    if end < start {start = end}
     unsafe {std::ptr::copy_nonoverlapping (buf.as_mut_ptr().add (start), buf.as_mut_ptr(), end - start)}
     end -= start;
     start = 0;
@@ -207,33 +202,31 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
     }
 
     loop {
-      // Invariant: `start` points at WARC headers here
-      if end - start < 1024 {break}  // read more
+      if (end as i64) - (start as i64) < 4096 {break}  // read more
 
-      let newlineʹ = memchr::memchr (b'\n', &buf[start..end]) ?;
-      if newlineʹ <= 4 {fail! ("Not a WARC header at " (warc_pos!()))}
-      let newline = start + newlineʹ;
-      let line = &buf[start .. newline-1];
-      start = newline + 1;
+      let head = match memchr::memmem::find (&buf[start..end], b"WARC/1.0\r\nWARC-Type: response\r\n") {
+        Some (ofs) => ofs,
+        None => if eof || start == 0 {break 'warc} else {break}};
+      start += head;
 
+      let cl: usize = loop {
+        let newlineʹ = memchr::memchr (b'\n', &buf[start..end]) ?;
+        if newlineʹ <= 4 {fail! ("Not a WARC header at " (warc_pos!()))}
+        let newline = start + newlineʹ;
+        let line = &buf[start .. newline-1];
+        start = newline + 1;
+        if line.starts_with (b"Content-Length: ") {
+          let cl = unsafe {std::str::from_utf8_unchecked (&line[16..])};
+          let head = memchr::memmem::find (&buf[start..end], b"\r\n\r\n") ?;
+          start += head + 4;
+          break cl.parse()?}};
 
-      if line.starts_with (b"Content-Length: ") {
-        let cl = unsafe {std::str::from_utf8_unchecked (&line[16..])};
-        let cl: usize = cl.parse()?;
-        let head_end = start + memchr::memmem::find (&buf[start..end], b"\n\n") ?;
-        // Newlines before content + content + newlines after content
-        start = head_end + 2 + cl + 2;
-        println! ("head_end {head_end}; start {start}");
-        while buf[start] == b'\n' {start += 1}
-        println! ("{start} b");
-        //println! ("warc doc found between {} and {}, cl {}", head_end + 2, start, cl);
-      }
-    }
+      start += cl;
+      docs += 1}
 
-    if eof {break}
-  }
-  Re::Ok(())
-}
+    if eof {break}}
+  println! ("docs {docs}");
+  Re::Ok(())}
 
 fn main() {
   println!("Hello");
