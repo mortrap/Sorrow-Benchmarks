@@ -198,14 +198,15 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
       let got = warc.read (&mut buf[end..])?;
       total += got;
       end += got;
-      if got == 0 {eof = true; break}
-    }
+      if got == 0 {eof = true; break}}
 
     loop {
       if (end as i64) - (start as i64) < 4096 {break}  // read more
 
       let head = match memchr::memmem::find (&buf[start..end], b"WARC/1.0\r\nWARC-Type: response\r\n") {
         Some (ofs) => ofs,
+        // Invariant: if start == 0 then buf is at least 4/5 capacity full, unless EOF
+        // Invariant: we are NOT in the middle of a large (>2 MiB) document
         None => if eof || start == 0 {break 'warc} else {break}};
       start += head;
 
@@ -221,6 +222,7 @@ fn parse_warc (warc: &mut dyn std::io::Read) -> Re<()> {
           start += head + 4;
           break cl.parse()?}};
 
+      // tbd: consume the rest of the document when the content-length overflows the buffer
       start += cl;
       docs += 1}
 
